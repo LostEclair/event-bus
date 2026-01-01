@@ -1,0 +1,73 @@
+#+TITLE: Documentation
+
+* (make-event-bus)
+=make-event-bus= returns a closure, which can receive a set of messages.
+
+** Messages
+The =bus= mentioned here is a scheme object, which was created by the =make-event-bus=
+
+*** 'propagate
+Calls all of the event receivers, with given set of arguments.
+#+BEGIN_SRC scheme
+  (bus 'propagate 'event 'next-come-the-arguments)
+#+END_SRC
+
+*** 'has-attached?
+Checks if the receiver has been attached to the event.
+
+*** 'attach
+Attaches a receiver function to the event. You cannot duplicate receivers.
+#+BEGIN_SRC scheme
+  (define (some-receiver symbol)
+    (format #t "Got a symbol: ~A~%" symbol))
+
+  (define (some-other-receiver symbol)
+    (format #t "Hey, thats a symbol: ~A~%" symbol))
+
+  (bus 'attach 'symbol some-receiver)
+  (bus 'attach 'symbol some-other-receiver)
+
+  (bus 'propagate 'symbol 'foo) ; Those two functions get called.
+  (bus 'receivers 'symbol) ; => (#<procedure some-other-receiver> #<procedure some-receiver>)
+#+END_SRC
+
+*** 'detach
+Detaches a receiver function from an event.
+#+BEGIN_SRC scheme
+  (define (some-receiver symbol)
+    (format #t "Got a symbol: ~A~%" symbol))
+
+  (bus 'attach 'symbol some-receiver)
+  (bus 'detach 'symbol some-receiver)
+
+  (bus 'propagate 'symbol 'foo) ; Nothing will happen
+  (bus 'receivers 'symbol) ; => ()
+#+END_SRC
+
+*** 'reset
+Resets a bus to an initial state.
+#+BEGIN_SRC scheme
+  (define (some-receiver symbol)
+    (format #t "Got a symbol: ~A~%" symbol))
+
+  (bus 'attach 'symbol some-receiver)
+  (bus 'attach 'another-symbol some-receiver)
+
+  (bus 'receivers) ; => #((another-symbol #<procedure some-receiver>) (symbol #<procedure some-receiver>))
+  (bus 'reset)
+  (bus 'receivers) ; => #()
+#+END_SRC
+
+*** 'receivers
+Returns a vector, which consists of all the event receivers.
+If an event is provided, it narrows the scope to the list of receivers of a given event.
+#+BEGIN_SRC scheme
+  (define (some-receiver symbol)
+    (format #t "Got a symbol: ~A~%" symbol))
+
+  (bus 'attach 'symbol some-receiver)
+  (bus 'attach 'another-symbol some-receiver)
+
+  (bus 'receivers) ; => #((another-symbol #<procedure some-receiver>) (symbol #<procedure some-receiver>))
+  (bus 'receivers 'symbol) ; => (#<procedure some-receiver>)
+#+END_SRC

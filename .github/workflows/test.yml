@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install CS
+        run: sudo apt-get install -y chezscheme
+
+      - name: Run a test suite
+        run: cd ${{ github.workspace }} && scheme --program ./test.ss
