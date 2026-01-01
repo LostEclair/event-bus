@@ -13,8 +13,8 @@
 
   (define (make-event-bus)
     (let ([event-receivers (make-eq-hashtable)])
+      ;; Call all of the receivers with given arguments
       (define (propagate event . arguments)
-        "Call all of the receivers with given arguments"
         (let ([receivers (hashtable-ref event-receivers event '())])
           (for-each (lambda (receiver)
                       (guard (exception [else (format (current-error-port) "; Error in event receiver for ~A: ~A (~A)~%"
@@ -27,8 +27,8 @@
           (error 'has-attached? "Provided event receiver is not a procedure" procedure))
         (memq procedure (hashtable-ref event-receivers event '())))
 
+      ;; Attach a receiver to an event
       (define (attach event procedure)
-        "Attach a receiver to an event"
         (unless (procedure? procedure)
           (error 'attach "Provided event receiver is not a procedure" procedure))
         (hashtable-update! event-receivers event (lambda (value)
@@ -38,16 +38,16 @@
                                                    (cons procedure value))
                            '()))
 
+      ;; Detach a receiver from an event
       (define (detach event procedure)
-        "Detach a receiver from an event"
         (unless (procedure? procedure)
           (error 'detach "Provided event receiver is not a procedure" procedure))
         (hashtable-update! event-receivers event (lambda (value)
                                                    (remq! procedure value))
                            '()))
-
+      
+      ;; Clears the internal event-receivers table
       (define (reset)
-        "Clears the internal event-receivers table"
         (hashtable-clear! event-receivers))
 
       (define receivers
