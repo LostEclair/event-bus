@@ -2,8 +2,6 @@
 
 ;;; An implementation of a synchronous event bus.
 ;;; Meaning if something is propagated, receivers are called immediately.
-;;;
-;;; Also, it's thread unsafe. Have fun.
 
 #!chezscheme
 
@@ -12,48 +10,61 @@
   (import (chezscheme))
 
   (define (make-event-bus)
-    (let ([event-receivers (make-eq-hashtable)])
+    (let ([event-receivers (make-eq-hashtable)]
+          [mutex (make-mutex)])
       ;; Call all of the receivers with given arguments
       (define (propagate event . arguments)
-        (let ([receivers (hashtable-ref event-receivers event '())])
+        (let ([receivers (with-mutex mutex
+                           (hashtable-ref event-receivers event '()))])
           (for-each (lambda (receiver)
-                      (guard (exception [else (format (current-error-port) "; Error in event receiver for ~A: ~A (~A)~%"
-                                                      event exception receiver)])
+                      (guard (exception [else (format (current-error-port) "; Warning from an event-bus: Guard triggered while propagating ~A: ~S from ~A~%"
+                                                      event (condition-message exception) receiver)])
                         (apply receiver arguments)))
-                    receivers)))
+                    receivers)
+          (list-copy receivers)))
 
       (define (has-attached? event procedure)
         (unless (procedure? procedure)
           (error 'has-attached? "Provided event receiver is not a procedure" procedure))
-        (memq procedure (hashtable-ref event-receivers event '())))
+        (with-mutex mutex
+          (memq procedure (hashtable-ref event-receivers event '()))))
 
       ;; Attach a receiver to an event
       (define (attach event procedure)
         (unless (procedure? procedure)
           (error 'attach "Provided event receiver is not a procedure" procedure))
-        (hashtable-update! event-receivers event (lambda (value)
-                                                   (when (has-attached? event procedure)
-                                                     (error 'attach "Provided event receiver has been already attached to the event"
-                                                            event procedure))
-                                                   (cons procedure value))
-                           '()))
+        (with-mutex mutex
+          (hashtable-update! event-receivers event (lambda (value)
+                                                     (when (memq procedure (hashtable-ref event-receivers event '()))
+                                                       (error 'attach "Provided event receiver has been already attached to the event"
+                                                              event procedure))
+                                                     (cons procedure value))
+                             '())))
 
       ;; Detach a receiver from an event
       (define (detach event procedure)
         (unless (procedure? procedure)
           (error 'detach "Provided event receiver is not a procedure" procedure))
-        (hashtable-update! event-receivers event (lambda (value)
-                                                   (remq! procedure value))
-                           '()))
-      
+        (with-mutex mutex
+          (hashtable-update! event-receivers event (lambda (value)
+                                                     (remq procedure value))
+                             '())))
+
       ;; Clears the internal event-receivers table
       (define (reset)
-        (hashtable-clear! event-receivers))
+        (with-mutex mutex
+          (hashtable-clear! event-receivers)))
 
       (define receivers
         (case-lambda
-          [() (hashtable-cells event-receivers)]
-          [(event) (hashtable-ref event-receivers event '())]))
+          [() (with-mutex mutex
+                (let ([cells (hashtable-cells event-receivers)])
+                  (vector-map (lambda (cell)
+                                (cons (car cell)
+                                      (list-copy (cdr cell))))
+                              cells)))]
+          [(event) (with-mutex mutex
+                     (list-copy (hashtable-ref event-receivers event '())))]))
 
       (lambda (message . arguments)
         (let ([available-messages `((propagate . ,propagate)

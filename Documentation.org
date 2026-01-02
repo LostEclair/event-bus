@@ -8,6 +8,7 @@ The =bus= mentioned here is a scheme object, which was created by the =make-even
 
 *** 'propagate
 Calls all of the event receivers, with given set of arguments.
+Returns a list, which consists of affected procedures.
 #+BEGIN_SRC scheme
   (bus 'propagate 'event 'next-come-the-arguments)
 #+END_SRC
@@ -61,6 +62,7 @@ Resets a bus to an initial state.
 *** 'receivers
 Returns a vector, which consists of all the event receivers.
 If an event is provided, it narrows the scope to the list of receivers of a given event.
+Any returned value is a copy.
 #+BEGIN_SRC scheme
   (define (some-receiver symbol)
     (format #t "Got a symbol: ~A~%" symbol))
