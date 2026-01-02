@@ -14,8 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install CS
-        run: sudo apt-get install -y chezscheme
+      - name: Build CS 10.0.0
+        run: |
+        wget "https://github.com/cisco/ChezScheme/releases/download/v10.0.0/csv10.0.0.tar.gz"
+        tar -xzf csv10.0.0.tar.gz
+        cd csv10.0.0
+        ./configure && make && sudo make install
 
       - name: Run a test suite
         run: cd ${{ github.workspace }} && scheme --program ./test.ss
