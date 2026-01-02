@@ -19,7 +19,7 @@ jobs:
           wget "https://github.com/cisco/ChezScheme/releases/download/v10.0.0/csv10.0.0.tar.gz"
           tar -xzf csv10.0.0.tar.gz
           cd csv10.0.0
-          ./configure && make && sudo make install
+          ./configure --disable-x11 --disable-curses && make && sudo make install
 
       - name: Run a test suite
         run: cd ${{ github.workspace }} && scheme --program ./test.ss
