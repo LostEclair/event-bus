@@ -15,13 +15,14 @@
       ;; Call all of the receivers with given arguments
       (define (propagate event . arguments)
         (let ([receivers (with-mutex mutex
-                           (hashtable-ref event-receivers event '()))])
+                           (list-copy (hashtable-ref event-receivers event '())))])
           (for-each (lambda (receiver)
                       (guard (exception [else (format (current-error-port) "; Warning from an event-bus: Guard triggered while propagating ~A: ~S from ~A~%"
                                                       event (condition-message exception) receiver)])
                         (apply receiver arguments)))
                     receivers)))
 
+      ;; Check if procedure has been attached to the event
       (define (has-attached? event procedure)
         (unless (procedure? procedure)
           (error 'has-attached? "Provided event receiver is not a procedure" procedure))
