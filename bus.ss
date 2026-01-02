@@ -20,8 +20,7 @@
                       (guard (exception [else (format (current-error-port) "; Warning from an event-bus: Guard triggered while propagating ~A: ~S from ~A~%"
                                                       event (condition-message exception) receiver)])
                         (apply receiver arguments)))
-                    receivers)
-          (list-copy receivers)))
+                    receivers)))
 
       (define (has-attached? event procedure)
         (unless (procedure? procedure)
@@ -35,7 +34,7 @@
           (error 'attach "Provided event receiver is not a procedure" procedure))
         (with-mutex mutex
           (hashtable-update! event-receivers event (lambda (value)
-                                                     (when (memq procedure (hashtable-ref event-receivers event '()))
+                                                     (when (memq procedure value)
                                                        (error 'attach "Provided event receiver has been already attached to the event"
                                                               event procedure))
                                                      (cons procedure value))

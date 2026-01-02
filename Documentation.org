@@ -8,7 +8,6 @@ The =bus= mentioned here is a scheme object, which was created by the =make-even
 
 *** 'propagate
 Calls all of the event receivers, with given set of arguments.
-Returns a list, which consists of affected procedures.
 #+BEGIN_SRC scheme
   (bus 'propagate 'event 'next-come-the-arguments)
 #+END_SRC

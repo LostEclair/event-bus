@@ -21,15 +21,6 @@
   (apply format #t (string-append "; " formatting "~%")
          arguments))
 
-(define (all-procedures? list)
-  (if (list? list)
-      (cond
-       ([null? list] #t)
-       ([procedure? (car list)]
-        (all-procedures? (cdr list)))
-       (else #f))
-      #f))
-
 (define (run-tests)
   (let ([results '()])
     (define (test name test-body)
@@ -133,15 +124,6 @@
               (bus 'attach 'multi-args receiver)
               (bus 'propagate 'multi-args 'a 'b 'c 'd)
               (equal? (unbox result) '(a b c d)))))
-
-    (test "'propagate returns a list of procedures"
-          (lambda ()
-            (let* ((bus (make-event-bus))
-                   (r1 (lambda () 1))
-                   (r2 (lambda () 2)))
-              (bus 'attach 'event r1)
-              (bus 'attach 'event r2)
-              (all-procedures? (bus 'propagate 'event)))))
 
     (test "'propagate with no receivers does nothing"
           (lambda ()
