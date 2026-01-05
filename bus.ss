@@ -66,13 +66,14 @@
           [(event) (with-mutex mutex
                      (list-copy (hashtable-ref event-receivers event '())))]))
 
-      (lambda (message . arguments)
-        (let ([available-messages `((propagate . ,propagate)
-                                    (has-attached? . ,has-attached?)
-                                    (attach . ,attach)
-                                    (detach . ,detach)
-                                    (reset . ,reset)
-                                    (receivers . ,receivers))])
+
+      (let ([available-messages `((propagate . ,propagate)
+                                  (has-attached? . ,has-attached?)
+                                  (attach . ,attach)
+                                  (detach . ,detach)
+                                  (reset . ,reset)
+                                  (receivers . ,receivers))])
+        (lambda (message . arguments)
           (apply (let ([found-message (assq message available-messages)])
                    (if found-message
                        (cdr found-message)
