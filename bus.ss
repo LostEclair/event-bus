@@ -32,11 +32,11 @@
       ;; Attach a receiver to an event
       (define (attach! event procedure)
         (unless (procedure? procedure)
-          (error 'attach "Provided event receiver is not a procedure" procedure))
+          (error 'attach! "Provided event receiver is not a procedure" procedure))
         (with-mutex mutex
           (hashtable-update! event-receivers event (lambda (value)
                                                      (when (memq procedure value)
-                                                       (error 'attach "Provided event receiver has been already attached to the event"
+                                                       (error 'attach! "Provided event receiver has been already attached to the event"
                                                               event procedure))
                                                      (cons procedure value))
                              '())))
@@ -44,7 +44,7 @@
       ;; Detach a receiver from an event
       (define (detach! event procedure)
         (unless (procedure? procedure)
-          (error 'detach "Provided event receiver is not a procedure" procedure))
+          (error 'detach! "Provided event receiver is not a procedure" procedure))
         (with-mutex mutex
           (hashtable-update! event-receivers event (lambda (value)
                                                      (remq procedure value))
@@ -65,7 +65,6 @@
                               cells)))]
           [(event) (with-mutex mutex
                      (list-copy (hashtable-ref event-receivers event '())))]))
-
 
       (let ([available-messages `((propagate! . ,propagate!)
                                   (has-attached? . ,has-attached?)
