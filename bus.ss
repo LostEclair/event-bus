@@ -13,7 +13,7 @@
     (let ([event-receivers (make-eq-hashtable)]
           [mutex (make-mutex)])
       ;; Call all of the receivers with given arguments
-      (define (propagate event . arguments)
+      (define (propagate! event . arguments)
         (let ([receivers (with-mutex mutex
                            (list-copy (hashtable-ref event-receivers event '())))])
           (for-each (lambda (receiver)
@@ -30,7 +30,7 @@
           (memq procedure (hashtable-ref event-receivers event '()))))
 
       ;; Attach a receiver to an event
-      (define (attach event procedure)
+      (define (attach! event procedure)
         (unless (procedure? procedure)
           (error 'attach "Provided event receiver is not a procedure" procedure))
         (with-mutex mutex
@@ -42,7 +42,7 @@
                              '())))
 
       ;; Detach a receiver from an event
-      (define (detach event procedure)
+      (define (detach! event procedure)
         (unless (procedure? procedure)
           (error 'detach "Provided event receiver is not a procedure" procedure))
         (with-mutex mutex
@@ -51,7 +51,7 @@
                              '())))
 
       ;; Clears the internal event-receivers table
-      (define (reset)
+      (define (reset!)
         (with-mutex mutex
           (hashtable-clear! event-receivers)))
 
@@ -67,11 +67,11 @@
                      (list-copy (hashtable-ref event-receivers event '())))]))
 
 
-      (let ([available-messages `((propagate . ,propagate)
+      (let ([available-messages `((propagate! . ,propagate!)
                                   (has-attached? . ,has-attached?)
-                                  (attach . ,attach)
-                                  (detach . ,detach)
-                                  (reset . ,reset)
+                                  (attach! . ,attach!)
+                                  (detach! . ,detach!)
+                                  (reset! . ,reset!)
                                   (receivers . ,receivers))])
         (lambda (message . arguments)
           (apply (let ([found-message (assq message available-messages)])
