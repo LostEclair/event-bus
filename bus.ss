@@ -27,7 +27,7 @@
     ;; Provide #t to unique argument to make it check, whether some functions are
     ;;   already attached to the bus
     (type-check! [unique is boolean?
-                         or warning in 'make-event-bus "Unique must be a boolean"])
+                         or error in 'make-event-bus "Unique must be a boolean"])
     (let ([receivers (make-eq-hashtable)]
           [pending '()]
           [lock (make-mutex)])
