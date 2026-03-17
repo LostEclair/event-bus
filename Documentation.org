@@ -1,5 +1,8 @@
 #+TITLE: Documentation
 
+* WARNING: This documentation is deprecated
+New documentation (for async bus) will be done later.
+
 * (make-event-bus)
 =make-event-bus= returns a closure, which can receive a set of messages.
 
