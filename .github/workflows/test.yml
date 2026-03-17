@@ -10,32 +10,37 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cs-version: ["10.0.0", "10.1.0", "10.2.0", "10.3.0"]
+      fail-fast: false
+
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Cache CS 10.0.0
+
+      - name: Cache CS ${{ matrix.cs-version }}
         id: cs-cache
         uses: actions/cache@v4
         with:
-          path: ~/.cache/csv10.0.0
-          key: csv10.0.0-${{ runner.os }}
-      
-      - name: Build CS 10.0.0
+          path: ~/.cache/csv${{ matrix.cs-version }}
+          key: csv${{ matrix.cs-version }}-${{ runner.os }}
+
+      - name: Build CS ${{ matrix.cs-version }}
         if: steps.cs-cache.outputs.cache-hit != 'true'
         run: |
-          mkdir -p ~/.cache/csv10.0.0
-          cd ~/.cache/csv10.0.0
-          
-          wget -q "https://github.com/cisco/ChezScheme/releases/download/v10.0.0/csv10.0.0.tar.gz"
-          tar -xzf csv10.0.0.tar.gz
-          cd csv10.0.0
-          
-          ./configure --prefix="$HOME/.cache/csv10.0.0/install" --disable-x11 --disable-curses
+          mkdir -p ~/.cache/csv${{ matrix.cs-version }}
+          cd ~/.cache/csv${{ matrix.cs-version }}
+
+          wget -q "https://github.com/cisco/ChezScheme/releases/download/v${{ matrix.cs-version }}/csv${{ matrix.cs-version }}.tar.gz"
+          tar -xzf csv${{ matrix.cs-version }}.tar.gz
+          cd csv${{ matrix.cs-version }}
+
+          ./configure --prefix="$HOME/.cache/csv${{ matrix.cs-version }}/install" --disable-x11 --disable-curses
           make
           make install
-      
+
       - name: Add CS to the PATH
-        run: echo "$HOME/.cache/csv10.0.0/install/bin" >> $GITHUB_PATH
-      
+        run: echo "$HOME/.cache/csv${{ matrix.cs-version }}/install/bin" >> $GITHUB_PATH
+
       - name: Run a test suite
         run: scheme --program ./test.ss
