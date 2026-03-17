@@ -1,5 +1,7 @@
+#!chezscheme
+
 (import (chezscheme)
-        (bus))
+        (prefix (bus) bus:))
 
 (define (string-contains? str substr)
   (let ([str-length (string-length str)]
@@ -18,295 +20,329 @@
                              acc)))))
 
 (define (say formatting . arguments)
-  (apply format #t (string-append "; " formatting "~%")
+  (apply format #t (string-append formatting "~%")
          arguments))
+
+(define (raises? thunk)
+  (call/cc
+   (lambda (k)
+     (with-exception-handler
+         (lambda (e) (k #t))
+       (lambda ()
+         (thunk)
+         #f)))))
 
 (define (run-tests)
   (let ([results '()])
     (define (test name test-body)
-      (let ([result (test-body)])
+      (let ([result (guard (e [else #f]) (test-body))])
         (set! results (cons (cons name result) results))
-        (say "Test ~90,1,1,'.@<~A ~> ~A" name (if result "OK" "FAIL"))
+        (say "~80A ~A" name (if result "PASS" "FAIL"))
         result))
 
-    (test "make-event-bus returns a procedure" (lambda () (procedure? (make-event-bus))))
-
-    (test "'attach! and 'propagate! with single receiver"
+    (test "bus:make-event-bus returns a procedure"
           (lambda ()
-            (let* ((bus (make-event-bus))
-                   (output (open-output-string))
-                   (receiver (lambda (x)
-                               (display (string-append "Got: " x) output))))
-              (bus 'attach! 'test-event receiver)
-              (bus 'propagate! 'test-event "hello")
-              (bus 'propagate! 'test-event "world")
-              (let ((result (get-output-string output)))
-                (and (string-contains? result "Got: hello")
-                     (string-contains? result "Got: world"))))))
+            (procedure? (bus:make-event-bus #f))))
 
-    (test "multiple receivers for same event"
+    (test "bus:make-event-bus type-checks it's arguments"
           (lambda ()
-            (let* ((bus (make-event-bus))
-                   (output1 (open-output-string))
-                   (output2 (open-output-string))
-                   (receiver1 (lambda (x y)
-                                (display (string-append "R1:" x y) output1)))
-                   (receiver2 (lambda (x y)
-                                (display (string-append "R2:" x y) output2))))
-              (bus 'attach! 'multi receiver1)
-              (bus 'attach! 'multi receiver2)
-              (bus 'propagate! 'multi "a" "b")
-              (let ((r1 (get-output-string output1))
-                    (r2 (get-output-string output2)))
-                (and (string=? r1 "R1:ab")
-                     (string=? r2 "R2:ab"))))))
+            (raises? (lambda () (bus:make-event-bus "not-a-boolean")))))
 
-    (test "'detach! removes receiver"
+    (test "'attach type-checks it's arguments"
           (lambda ()
-            (let* ((bus (make-event-bus))
-                   (output (open-output-string))
-                   (receiver (lambda ()
-                               (display "called" output))))
-              (bus 'attach! 'detach!-test receiver)
-              (bus 'propagate! 'detach!-test)
-              (bus 'detach! 'detach!-test receiver)
-              (bus 'propagate! 'detach!-test)
-              (let ((result (get-output-string output)))
-                (string=? result "called")))))
+            (let ([bus (bus:make-event-bus #f)])
+              (and
+               (raises? (lambda () (bus 'attach! 123 (lambda () #f))))
+               (raises? (lambda () (bus 'attach! 'test "not-a-proc")))))))
 
-    (test "'receivers returns vector of all receivers"
+    (test "'detach type-checks it's arguments"
           (lambda ()
-            (let* ((bus (make-event-bus))
-                   (r1 (lambda () 1))
-                   (r2 (lambda () 2))
-                   (r3 (lambda () 3)))
-              (bus 'attach! 'event-a r1)
-              (bus 'attach! 'event-a r2)
-              (bus 'attach! 'event-b r3)
-              (let ((vec (bus 'receivers)))
-                (and (vector? vec)
-                     (= (vector-length vec) 2))))))
+            (let ([bus (bus:make-event-bus #f)])
+              (and
+               (raises? (lambda () (bus 'detach! 123 (lambda () #f))))
+               (raises? (lambda () (bus 'detach! 'test "not-a-proc")))))))
 
-    (test "'receivers with event returns list for that event"
+    (test "'detach-id type-checks it's arguments"
           (lambda ()
-            (let* ((bus (make-event-bus))
-                   (r1 (lambda () 1))
-                   (r2 (lambda () 2))
-                   (r3 (lambda () 3)))
-              (bus 'attach! 'event-a r1)
-              (bus 'attach! 'event-a r2)
-              (bus 'attach! 'event-b r3)
-              (let ((lst (bus 'receivers 'event-a)))
-                (and (list? lst)
-                     (= (length lst) 2)
-                     (memq r1 lst)
-                     (memq r2 lst))))))
+            (let ([bus (bus:make-event-bus #f)])
+              (and
+               (raises? (lambda () (bus 'detach-id! 123 (gensym))))
+               (raises? (lambda () (bus 'detach-id! 'test "not-a-symbol")))))))
+
+    (test "'attach returns a symbol id"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [id (bus 'attach! 'test (lambda () #f))])
+              (symbol? id))))
+
+    (test "'attach returns unique ids per attachment"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [receiver (lambda () #f)]
+                   [id1 (bus 'attach! 'test receiver)]
+                   [id2 (bus 'attach! 'test receiver)])
+              (not (eq? id1 id2)))))
+
+    (test "'attach and 'propagate with single receiver"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [output (open-output-string)]
+                   [receiver (lambda (x)
+                               (display x output))])
+              (bus 'attach! 'test receiver)
+              (bus 'propagate! 'test "x")
+              (bus 'propagate! 'test "y")
+              (bus 'go!)
+              (string-contains? (get-output-string output) "xy"))))
+
+    (test "nothing happens until 'go! is sent"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [output (open-output-string)]
+                   [receiver (lambda ()
+                               (display "x" output))])
+              (bus 'attach! 'test receiver)
+              (not (string-contains? (get-output-string output) "x")))))
+
+    (test "'propagate! type-checks its event argument"
+          (lambda ()
+            (let ([bus (bus:make-event-bus #f)])
+              (raises? (lambda () (bus 'propagate! "not-a-symbol"))))))
+
+    (test "multiple receivers on same event all fire"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [count 0])
+              (bus 'attach! 'test (lambda () (set! count (+ count 1))))
+              (bus 'attach! 'test (lambda () (set! count (+ count 1))))
+              (bus 'attach! 'test (lambda () (set! count (+ count 1))))
+              (bus 'propagate! 'test)
+              (bus 'go!)
+              (= count 3))))
+
+    (test "receivers fire in attachment order"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [output (open-output-string)])
+              (bus 'attach! 'test (lambda () (display "a" output)))
+              (bus 'attach! 'test (lambda () (display "b" output)))
+              (bus 'attach! 'test (lambda () (display "c" output)))
+              (bus 'propagate! 'test)
+              (bus 'go!)
+              (string=? (get-output-string output) "abc"))))
+
+    (test "events in queue fire in propagation order"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [output (open-output-string)])
+              (bus 'attach! 'a (lambda () (display "a" output)))
+              (bus 'attach! 'b (lambda () (display "b" output)))
+              (bus 'attach! 'c (lambda () (display "c" output)))
+              (bus 'propagate! 'a)
+              (bus 'propagate! 'b)
+              (bus 'propagate! 'c)
+              (bus 'go!)
+              (string=? (get-output-string output) "abc"))))
+
+    (test "receivers receive multiple arguments from propagate!"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [received '()])
+              (bus 'attach! 'test (lambda (a b c)
+                                    (set! received (list a b c))))
+              (bus 'propagate! 'test 1 2 3)
+              (bus 'go!)
+              (equal? received '(1 2 3)))))
+
+    (test "'detach removes a receiver"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [fired #f]
+                   [receiver (lambda () (set! fired #t))])
+              (bus 'attach! 'test receiver)
+              (bus 'detach! 'test receiver)
+              (bus 'propagate! 'test)
+              (bus 'go!)
+              (not fired))))
+
+    (test "'detach on non-attached receiver does not raise"
+          (lambda ()
+            (let ([bus (bus:make-event-bus #f)])
+              (bus 'detach! 'test (lambda () #f))
+              #t)))
+
+    (test "'detach only removes the matching receiver"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [count 0]
+                   [r1 (lambda () (set! count (+ count 1)))]
+                   [r2 (lambda () (set! count (+ count 1)))])
+              (bus 'attach! 'test r1)
+              (bus 'attach! 'test r2)
+              (bus 'detach! 'test r1)
+              (bus 'propagate! 'test)
+              (bus 'go!)
+              (= count 1))))
+
+    (test "'detach-id! removes receiver by id"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [fired #f]
+                   [id (bus 'attach! 'test (lambda () (set! fired #t)))])
+              (bus 'detach-id! 'test id)
+              (bus 'propagate! 'test)
+              (bus 'go!)
+              (not fired))))
+
+    (test "'detach-id! only removes the targeted receiver"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [count 0]
+                   [id (bus 'attach! 'test (lambda () (set! count (+ count 1))))])
+              (bus 'attach! 'test (lambda () (set! count (+ count 1))))
+              (bus 'detach-id! 'test id)
+              (bus 'propagate! 'test)
+              (bus 'go!)
+              (= count 1))))
 
     (test "'reset! clears all receivers"
           (lambda ()
-            (let* ((bus (make-event-bus))
-                   (output (open-output-string))
-                   (receiver (lambda () (display "x" output))))
-              (bus 'attach! 'event1 receiver)
-              (bus 'attach! 'event2 receiver)
+            (let* ([bus (bus:make-event-bus #f)]
+                   [fired #f])
+              (bus 'attach! 'test (lambda () (set! fired #t)))
               (bus 'reset!)
-              (bus 'propagate! 'event1)
-              (bus 'propagate! 'event2)
-              (let ((result (get-output-string output)))
-                (string=? result "")))))
+              (bus 'propagate! 'test)
+              (bus 'go!)
+              (not fired))))
 
-    (test "'propagate! with multiple arguments"
+    (test "'reset! clears pending events"
           (lambda ()
-            (let* ((bus (make-event-bus))
-                   (result (box '()))
-                   (receiver (lambda args
-                               (set-box! result args))))
-              (bus 'attach! 'multi-args receiver)
-              (bus 'propagate! 'multi-args 'a 'b 'c 'd)
-              (equal? (unbox result) '(a b c d)))))
+            (let* ([bus (bus:make-event-bus #f)]
+                   [fired #f])
+              (bus 'attach! 'test (lambda () (set! fired #t)))
+              (bus 'propagate! 'test)
+              (bus 'reset!)
+              (bus 'go!)
+              (not fired))))
 
-    (test "'propagate! with no receivers does nothing"
+    (test "'go! clears the pending queue after execution"
           (lambda ()
-            (let ((bus (make-event-bus)))
-              (bus 'propagate! 'non-existent 'arg1 'arg2)
+            (let* ([bus (bus:make-event-bus #f)]
+                   [count 0])
+              (bus 'attach! 'test (lambda () (set! count (+ count 1))))
+              (bus 'propagate! 'test)
+              (bus 'go!)
+              (bus 'go!)
+              (= count 1))))
+
+    (test "'brrr! is an alias for 'go!"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [fired #f])
+              (bus 'attach! 'test (lambda () (set! fired #t)))
+              (bus 'propagate! 'test)
+              (bus 'brrr!)
+              fired)))
+
+    (test "propagating an event with no receivers does nothing"
+          (lambda ()
+            (let ([bus (bus:make-event-bus #f)])
+              (bus 'propagate! 'no-receivers-here)
+              (bus 'go!)
               #t)))
 
-    (test "'detach! non-existent receiver does nothing"
+    (test "separate events do not interfere with each other"
           (lambda ()
-            (let* ((bus (make-event-bus))
-                   (r1 (lambda () 1))
-                   (r2 (lambda () 2)))
-              (bus 'attach! 'event r1)
-              (bus 'detach! 'event r2)
-              (let ((lst (bus 'receivers 'event)))
-                (= (length lst) 1)))))
+            (let* ([bus (bus:make-event-bus #f)]
+                   [fired-a #f]
+                   [fired-b #f])
+              (bus 'attach! 'a (lambda () (set! fired-a #t)))
+              (bus 'attach! 'b (lambda () (set! fired-b #t)))
+              (bus 'propagate! 'a)
+              (bus 'go!)
+              (and fired-a (not fired-b)))))
 
-    (test "'receivers for non-existent event returns empty list"
+    (test "same procedure can attach to different events in unique mode"
           (lambda ()
-            (let ((bus (make-event-bus)))
-              (null? (bus 'receivers 'no-such-event)))))
+            (let* ([bus (bus:make-event-bus #t)]
+                   [count 0]
+                   [receiver (lambda () (set! count (+ count 1)))])
+              (bus 'attach! 'event-a receiver)
+              (bus 'attach! 'event-b receiver)
+              (bus 'propagate! 'event-a)
+              (bus 'propagate! 'event-b)
+              (bus 'go!)
+              (= count 2))))
 
-    (test "receivers maintain attachment order (LIFO)"
+    (test "'attach in unique mode does not allow same procedures per-event"
           (lambda ()
-            (let* ((bus (make-event-bus))
-                   (output (open-output-string))
-                   (r1 (lambda () (display "1" output)))
-                   (r2 (lambda () (display "2" output)))
-                   (r3 (lambda () (display "3" output))))
-              (bus 'attach! 'order r1)
-              (bus 'attach! 'order r2)
-              (bus 'attach! 'order r3)
-              (bus 'propagate! 'order)
-              (let ((result (get-output-string output)))
-                (string=? result "321")))))
+            (let* ([bus (bus:make-event-bus #t)]
+                   [receiver (lambda () #f)])
+              (bus 'attach! 'test receiver)
+              (raises? (lambda ()
+                         (bus 'attach! 'test receiver))))))
 
-    (test "receiver attachment can be checked using 'has-attached?"
+    (test "unique mode allows re-attaching after detach"
           (lambda ()
-            (let* ((bus (make-event-bus))
-                   (r1 (lambda () 1))
-                   (r2 (lambda () 2)))
-              (bus 'attach! 'event r1)
-              (and (bus 'has-attached? 'event r1)
-                   (not (bus 'has-attached? 'event r2))))))
-
-    (test "'attach! with non-procedure throws error"
-          (lambda ()
-            (let ((bus (make-event-bus)))
-              (guard (condition
-                      [(error? condition)
-                       (and (string-contains?
-                             (condition-message condition)
-                             "Provided event receiver is not a procedure")
-                            (equal? (condition-irritants condition) '("not a procedure")))])
-                (bus 'attach! 'event "not a procedure")
-                #f))))
-
-    (test "'detach! with non-procedure throws error"
-          (lambda ()
-            (let ((bus (make-event-bus))
-                  (receiver (lambda () 1)))
-              (bus 'attach! 'event receiver)
-              (guard (condition
-                      [(error? condition)
-                       (and (string-contains?
-                             (condition-message condition)
-                             "Provided event receiver is not a procedure")
-                            (equal? (condition-irritants condition) '("not a procedure")))])
-                (bus 'detach! 'event "not a procedure")
-                #f))))
-
-    (test "'has-attached? with non-procedure throws error"
-          (lambda ()
-            (let ((bus (make-event-bus)))
-              (guard (condition
-                      [(error? condition)
-                       (and (string-contains?
-                             (condition-message condition)
-                             "Provided event receiver is not a procedure")
-                            (equal? (condition-irritants condition) '("not a procedure")))])
-                (bus 'has-attached? 'event "not a procedure")
-                #f))))
-
-    (test "'attach! same receiver twice throws error"
-          (lambda ()
-            (let ((bus (make-event-bus))
-                  (receiver (lambda () 1)))
-              (bus 'attach! 'event receiver)
-              (guard (condition
-                      [(error? condition)
-                       (and (string-contains?
-                             (condition-message condition)
-                             "Provided event receiver has been already attached")
-                            (eq? (car (condition-irritants condition)) 'event)
-                            (eq? (cadr (condition-irritants condition)) receiver))])
-                (bus 'attach! 'event receiver)
-                #f))))
-
-    (test "'detach! non-existent event does nothing"
-          (lambda ()
-            (let ((bus (make-event-bus))
-                  (receiver (lambda () 1)))
-              (bus 'detach! 'non-existent receiver)
+            (let* ([bus (bus:make-event-bus #t)]
+                   [receiver (lambda () #f)])
+              (bus 'attach! 'test receiver)
+              (bus 'detach! 'test receiver)
+              (bus 'attach! 'test receiver)
               #t)))
 
-    (test "receiver error does not stop propagation to other receivers"
+    (test "unique mode allows re-attaching after detach-id!"
           (lambda ()
-            (let* ((bus (make-event-bus))
-                   (output (open-output-string))
-                   (bad-receiver (lambda (msg)
-                                   ;; Bus will give us a warning, but won't crash.
-                                   (error 'bad-receiver "Im really bad!! :<")))
-                   (good-receiver (lambda (msg)
-                                    (display msg output))))
-              (bus 'attach! 'error-test bad-receiver)
-              (bus 'attach! 'error-test good-receiver)
-              (bus 'propagate! 'error-test "hello")
-              (let ((result (get-output-string output)))
-                (string=? result "hello")))))
+            (let* ([bus (bus:make-event-bus #t)]
+                   [receiver (lambda () #f)]
+                   [id (bus 'attach! 'test receiver)])
+              (bus 'detach-id! 'test id)
+              (bus 'attach! 'test receiver)
+              #t)))
 
-    (test "concurrent 'attach! and 'propagate!"
+    (test "non-unique mode allows duplicate procedure attachments"
           (lambda ()
-            (let ((bus (make-event-bus))
-                  (counter 0)
-                  (mutex (make-mutex)))
-              (define (increment)
-                (with-mutex mutex
-                  (set! counter (+ counter 1))))
-              (let ((attach-threads
-                     (map (lambda (i)
-                            (fork-thread
-                             (lambda ()
-                               (let ((receiver (lambda () (increment))))
-                                 (bus 'attach! 'concurrent receiver)))))
-                          (iota 10))))
-                (for-each thread-join attach-threads)
-                (let ((propagate-threads
-                       (map (lambda (i)
-                              (fork-thread
-                               (lambda ()
-                                 (bus 'propagate! 'concurrent))))
-                            (iota 5))))
-                  (for-each thread-join propagate-threads)
-                  (let ((expected-counter (* (length (bus 'receivers 'concurrent)) 5)))
-                    (= counter expected-counter)))))))
+            (let* ([bus (bus:make-event-bus #f)]
+                   [count 0]
+                   [receiver (lambda () (set! count (+ count 1)))])
+              (bus 'attach! 'test receiver)
+              (bus 'attach! 'test receiver)
+              (bus 'propagate! 'test)
+              (bus 'go!)
+              (= count 2))))
 
-    (test "concurrent 'attach! and 'detach!"
+    (test "unknown message raises an error"
           (lambda ()
-            (let ((bus (make-event-bus))
-                  (counter 0)
-                  (mutex (make-mutex)))
-              (define (increment)
-                (with-mutex mutex
-                  (set! counter (+ counter 1))))
-              (let ((receiver1 (lambda () (increment)))
-                    (receiver2 (lambda () (increment)))
-                    (receiver3 (lambda () (increment))))
-                (bus 'attach! 'concurrent-detach receiver1)
-                (bus 'attach! 'concurrent-detach receiver2)
-                (bus 'attach! 'concurrent-detach receiver3)
-                (let ((threads
-                       (append
-                        (map (lambda (i)
-                               (fork-thread
-                                (lambda ()
-                                  (let ((new-receiver (lambda () (increment))))
-                                    (bus 'attach! 'concurrent-detach new-receiver)))))
-                             (iota 3))
-                        (map (lambda (i)
-                               (fork-thread
-                                (lambda ()
-                                  (bus 'detach! 'concurrent-detach receiver2))))
-                             (iota 2)))))
-                  (for-each thread-join threads)
-                  (bus 'propagate! 'concurrent-detach)
-                  (let ((min-expected 2)
-                        (max-expected 5))
-                    (and (>= counter min-expected)
-                         (<= counter max-expected))))))))
+            (let ([bus (bus:make-event-bus #f)])
+              (raises? (lambda () (bus 'totally-unknown-message))))))
 
-    (let ([passed (count cdr results)]
-          [total (length results)])
-      (say "Passed ~D test~:P out of ~D." passed total)
-      (= passed total))))
+    (test "multiple buses are independent"
+          (lambda ()
+            (let* ([bus1 (bus:make-event-bus #f)]
+                   [bus2 (bus:make-event-bus #f)]
+                   [fired1 #f]
+                   [fired2 #f])
+              (bus1 'attach! 'test (lambda () (set! fired1 #t)))
+              (bus2 'attach! 'test (lambda () (set! fired2 #t)))
+              (bus1 'propagate! 'test)
+              (bus1 'go!)
+              (and fired1 (not fired2)))))
+
+    (test "reset! on one bus does not affect another"
+          (lambda ()
+            (let* ([bus1 (bus:make-event-bus #f)]
+                   [bus2 (bus:make-event-bus #f)]
+                   [fired #f])
+              (bus2 'attach! 'test (lambda () (set! fired #t)))
+              (bus1 'reset!)
+              (bus2 'propagate! 'test)
+              (bus2 'go!)
+              fired)))
+
+    (let ([all-passed (for-all cdr results)])
+      (say "Passed ~R out of ~R test~:P"
+           (count cdr results)
+           (length results))
+      all-passed)))
 
 (exit (if (run-tests) 0 1))
