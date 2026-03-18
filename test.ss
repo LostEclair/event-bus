@@ -20,24 +20,24 @@
                              acc)))))
 
 (define (say formatting . arguments)
-  (apply format #t (string-append formatting "~%")
+  (apply format #t (string-append "[" formatting "]~%")
          arguments))
 
 (define (raises? thunk)
-  (call/cc
-   (lambda (k)
-     (with-exception-handler
-         (lambda (e) (k #t))
-       (lambda ()
-         (thunk)
-         #f)))))
+  (call/cc (lambda (k)
+             (with-exception-handler (lambda (e)
+                                       (k #t))
+               (lambda ()
+                 (thunk)
+                 #f)))))
 
 (define (run-tests)
+  (say "Running test suite on ~A" (scheme-version #t))
   (let ([results '()])
     (define (test name test-body)
       (let ([result (guard (e [else #f]) (test-body))])
         (set! results (cons (cons name result) results))
-        (say "~80A ~A" name (if result "PASS" "FAIL"))
+        (say "~90,1,1,'.@<~A ~> ~A" name (if result "OK" "FAIL"))
         result))
 
     (test "bus:make-event-bus returns a procedure"
@@ -48,34 +48,34 @@
           (lambda ()
             (raises? (lambda () (bus:make-event-bus "not-a-boolean")))))
 
-    (test "'attach type-checks it's arguments"
+    (test "'attach! type-checks it's arguments"
           (lambda ()
             (let ([bus (bus:make-event-bus #f)])
               (and
                (raises? (lambda () (bus 'attach! 123 (lambda () #f))))
                (raises? (lambda () (bus 'attach! 'test "not-a-proc")))))))
 
-    (test "'detach type-checks it's arguments"
+    (test "'detach! type-checks it's arguments"
           (lambda ()
             (let ([bus (bus:make-event-bus #f)])
               (and
                (raises? (lambda () (bus 'detach! 123 (lambda () #f))))
                (raises? (lambda () (bus 'detach! 'test "not-a-proc")))))))
 
-    (test "'detach-id type-checks it's arguments"
+    (test "'detach-id! type-checks it's arguments"
           (lambda ()
             (let ([bus (bus:make-event-bus #f)])
               (and
                (raises? (lambda () (bus 'detach-id! 123 (gensym))))
                (raises? (lambda () (bus 'detach-id! 'test "not-a-symbol")))))))
 
-    (test "'attach returns a symbol id"
+    (test "'attach! returns a symbol id"
           (lambda ()
             (let* ([bus (bus:make-event-bus #f)]
                    [id (bus 'attach! 'test (lambda () #f))])
               (symbol? id))))
 
-    (test "'attach returns unique ids per attachment"
+    (test "'attach! returns unique ids per attachment"
           (lambda ()
             (let* ([bus (bus:make-event-bus #f)]
                    [receiver (lambda () #f)]
@@ -83,7 +83,7 @@
                    [id2 (bus 'attach! 'test receiver)])
               (not (eq? id1 id2)))))
 
-    (test "'attach and 'propagate with single receiver"
+    (test "'attach! and 'propagate! with single receiver"
           (lambda ()
             (let* ([bus (bus:make-event-bus #f)]
                    [output (open-output-string)]
@@ -144,7 +144,7 @@
               (bus 'go!)
               (string=? (get-output-string output) "abc"))))
 
-    (test "receivers receive multiple arguments from propagate!"
+    (test "receivers receive multiple arguments from 'propagate!"
           (lambda ()
             (let* ([bus (bus:make-event-bus #f)]
                    [received '()])
@@ -154,7 +154,7 @@
               (bus 'go!)
               (equal? received '(1 2 3)))))
 
-    (test "'detach removes a receiver"
+    (test "'detach! removes a receiver"
           (lambda ()
             (let* ([bus (bus:make-event-bus #f)]
                    [fired #f]
@@ -165,13 +165,13 @@
               (bus 'go!)
               (not fired))))
 
-    (test "'detach on non-attached receiver does not raise"
+    (test "'detach! on non-attached receiver does not raise"
           (lambda ()
             (let ([bus (bus:make-event-bus #f)])
               (bus 'detach! 'test (lambda () #f))
               #t)))
 
-    (test "'detach only removes the matching receiver"
+    (test "'detach! only removes the matching receiver"
           (lambda ()
             (let* ([bus (bus:make-event-bus #f)]
                    [count 0]
@@ -274,7 +274,7 @@
               (bus 'go!)
               (= count 2))))
 
-    (test "'attach in unique mode does not allow same procedures per-event"
+    (test "'attach! in unique mode does not allow same procedures per-event"
           (lambda ()
             (let* ([bus (bus:make-event-bus #t)]
                    [receiver (lambda () #f)])
@@ -328,7 +328,7 @@
               (bus1 'go!)
               (and fired1 (not fired2)))))
 
-    (test "reset! on one bus does not affect another"
+    (test "'reset! on one bus does not affect another"
           (lambda ()
             (let* ([bus1 (bus:make-event-bus #f)]
                    [bus2 (bus:make-event-bus #f)]
