@@ -12,15 +12,13 @@
     (syntax-rules (is or error warning in)
       [(_) #t]
       [(_ (what is p or error in who msg) rest ...)
-       (begin
-         (unless (p what)
-           (error who msg what))
-         (type-check! rest ...))]
+       (begin (unless (p what)
+                (error who msg what))
+              (type-check! rest ...))]
       [(_ (what is p or warning in who msg) rest ...)
-       (begin
-         (unless (p what)
-           (warning who msg what))
-         (type-check! rest ...))]))
+       (begin (unless (p what)
+                (warning who msg what))
+              (type-check! rest ...))]))
 
   (define (make-event-bus unique)
     ;; Creates an event bus
@@ -32,6 +30,7 @@
           [pending '()]
           [lock (make-mutex)])
       (define (attach! e proc)
+        ;; Attach a receiver to an event
         (type-check! [e is symbol?
                         or warning in 'attach! "Event must be a symbol"]
                      [proc is procedure?
@@ -41,10 +40,9 @@
             (hashtable-update! receivers e
                                (lambda (value)
                                  (when (and unique
-                                            (memp
-                                             (lambda (pair)
-                                               (eq? (cdr pair) proc))
-                                             value))
+                                            (memp (lambda (pair)
+                                                    (eq? (cdr pair) proc))
+                                                  value))
                                    (error 'attach! "Provided event receiver has been already attached!" e proc))
                                  (append value (list (cons recv-id proc))))
                                '())
@@ -59,10 +57,9 @@
         (with-mutex lock
           (hashtable-update! receivers e
                              (lambda (l)
-                               (remp
-                                (lambda (p)
-                                  (eq? (cdr p) proc))
-                                l))
+                               (remp (lambda (p)
+                                       (eq? (cdr p) proc))
+                                     l))
                              '())))
 
       (define (detach-id! e id)
@@ -95,15 +92,13 @@
       (define (go!)
         ;; Kickstart all the events
         (with-mutex lock
-          (for-each
-           (lambda (entry)
-             (let ([e (car entry)]
-                   [args (cdr entry)])
-               (for-each
-                (lambda (pair)
-                  (apply (cdr pair) args))
-                (hashtable-ref receivers e '()))))
-           pending)
+          (for-each (lambda (entry)
+                      (let ([e (car entry)]
+                            [args (cdr entry)])
+                        (for-each (lambda (pair)
+                                    (apply (cdr pair) args))
+                                  (hashtable-ref receivers e '()))))
+                    pending)
           (set! pending '())))
 
       (let ([supported-messages `([attach! . ,attach!]
