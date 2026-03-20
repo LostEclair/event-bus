@@ -330,6 +330,12 @@
               (bus2 'go!)
               fired)))
 
+    (test "'attach! returns a symbol, which starts with ebus-procedure-token:"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [token (bus 'attach! 'test (lambda () #f))])
+              (string-contains? (symbol->string token) "ebus-procedure-token:"))))
+
     (let ([all-passed (for-all cdr results)])
       (say "Passed ~R out of ~R test~:P"
            (count cdr results)
