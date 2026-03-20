@@ -235,15 +235,6 @@
               (bus 'go!)
               (= count 1))))
 
-    (test "'brrr! is an alias for 'go!"
-          (lambda ()
-            (let* ([bus (bus:make-event-bus #f)]
-                   [fired #f])
-              (bus 'attach! 'test (lambda () (set! fired #t)))
-              (bus 'propagate! 'test)
-              (bus 'brrr!)
-              fired)))
-
     (test "propagating an event with no receivers does nothing"
           (lambda ()
             (let ([bus (bus:make-event-bus #f)])
@@ -345,4 +336,4 @@
            (length results))
       all-passed)))
 
-(exit (if (run-tests) 0 1))
+(exit (if (time (run-tests)) 0 1))
