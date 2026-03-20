@@ -35,7 +35,7 @@
                         or warning in 'attach! "Event must be a symbol"]
                      [proc is procedure?
                            or error in 'attach! "Receiver must be a procedure"])
-        (let ([recv-id (gensym)])
+        (let ([recv-id (gensym "ebus-procedure-token:")])
           (with-mutex lock
             (hashtable-update! receivers e
                                (lambda (value)
