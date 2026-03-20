@@ -91,23 +91,28 @@
 
       (define (go!)
         ;; Kickstart all the events
-        (with-mutex lock
-          (for-each (lambda (entry)
-                      (let ([e (car entry)]
-                            [args (cdr entry)])
+        (let ([work (with-mutex lock
+                      (let* ([snap pending]
+                             [dispatches (map (lambda (entry)
+                                                (cons entry
+                                                      (hashtable-ref receivers (car entry) '())))
+                                              snap)])
+                        (set! pending '())
+                        dispatches))])
+          (for-each (lambda (item)
+                      (let ([args (cdar item)]
+                            [pairs (cdr item)])
                         (for-each (lambda (pair)
                                     (apply (cdr pair) args))
-                                  (hashtable-ref receivers e '()))))
-                    pending)
-          (set! pending '())))
+                                  pairs)))
+                    work)))
 
       (let ([supported-messages `([attach! . ,attach!]
                                   [detach! . ,detach!]
                                   [detach-id! . ,detach-id!]
                                   [reset! . ,reset!]
                                   [propagate! . ,propagate!]
-                                  [go! . ,go!]
-                                  [brrr! . ,go!])])
+                                  [go! . ,go!])])
         (lambda (m . args)
           (apply (let ([proc (assq m supported-messages)])
                    (if proc
