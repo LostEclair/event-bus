@@ -87,18 +87,18 @@
         (type-check! [e is symbol?
                         or warning in 'propagate! "Event must be a symbol"])
         (with-mutex lock
-          (set! pending (append pending (list (cons e args))))))
+          (set! pending (cons (cons e args) pending))))
 
       (define (go!)
         ;; Kickstart all the events
-        (let ([work (with-mutex lock
-                      (let* ([snap pending]
-                             [dispatches (map (lambda (entry)
-                                                (cons entry
-                                                      (hashtable-ref receivers (car entry) '())))
-                                              snap)])
-                        (set! pending '())
-                        dispatches))])
+        (let ([work
+               (with-mutex lock
+                 (let* ([snap (reverse pending)]
+                        [dispatches (map (lambda (entry)
+                                           (cons entry (hashtable-ref receivers (car entry) '())))
+                                         snap)])
+                   (set! pending '())
+                   dispatches))])
           (for-each (lambda (item)
                       (let ([args (cdar item)]
                             [pairs (cdr item)])
@@ -107,15 +107,12 @@
                                   pairs)))
                     work)))
 
-      (let ([supported-messages `([attach! . ,attach!]
-                                  [detach! . ,detach!]
-                                  [detach-id! . ,detach-id!]
-                                  [reset! . ,reset!]
-                                  [propagate! . ,propagate!]
-                                  [go! . ,go!])])
-        (lambda (m . args)
-          (apply (let ([proc (assq m supported-messages)])
-                   (if proc
-                       (cdr proc)
-                       (error 'make-event-bus "Did not understood a message" m)))
-                 args))))))
+      (lambda (m . args)
+        (case m
+          ['attach! (apply attach! args)]
+          ['detach! (apply detach! args)]
+          ['detach-id! (apply detach-id! args)]
+          ['reset! (reset!)]
+          ['propagate! (apply propagate! args)]
+          ['go! (go!)]
+          [else (error 'make-event-bus "Did not understood a message" m)])))))
