@@ -92,14 +92,13 @@
 
       (define (go!)
         ;; Kickstart all the events
-        (let ([work
-               (with-mutex lock
-                 (let* ([snap (reverse pending)]
-                        [dispatches (map (lambda (entry)
-                                           (cons entry (hashtable-ref receivers (car entry) '())))
-                                         snap)])
-                   (set! pending '())
-                   dispatches))])
+        (let ([work (with-mutex lock
+                      (let* ([snap (reverse pending)]
+                             [dispatches (map (lambda (entry)
+                                                (cons entry (hashtable-ref receivers (car entry) '())))
+                                              snap)])
+                        (set! pending '())
+                        dispatches))])
           (for-each (lambda (item)
                       (let ([args (cdar item)]
                             [pairs (cdr item)])
@@ -110,8 +109,10 @@
 
       (define (has-attached? e proc)
         ;; Check whether proc is attached to the event
-        (type-check! [e is symbol? or warning in 'has-attached? "Event must be a symbol"]
-                     [proc is procedure? or error in 'has-attached? "Receiver must be a procedure"])
+        (type-check! [e is symbol?
+                        or warning in 'has-attached? "Event must be a symbol"]
+                     [proc is procedure?
+                           or error in 'has-attached? "Receiver must be a procedure"])
         (with-mutex lock
           (pair? (memp (lambda (pair)
                          (eq? (cdr pair) proc))

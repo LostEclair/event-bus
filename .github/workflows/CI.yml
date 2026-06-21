@@ -43,4 +43,4 @@ jobs:
         run: echo "$HOME/.cache/csv${{ matrix.cs-version }}/install/bin" >> $GITHUB_PATH
 
       - name: Run a test suite
-        run: scheme --program ./test.ss
+        run: make check -Otarget -j$(nproc)
