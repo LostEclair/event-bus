@@ -20,7 +20,7 @@
                              acc)))))
 
 (define (say formatting . arguments)
-  (apply format #t (string-append "[" formatting "]~%")
+  (apply format #t (string-append "; " formatting "~%")
          arguments))
 
 (define (raises? thunk)
@@ -37,7 +37,7 @@
     (define (test name test-body)
       (let ([result (guard (e [else #f]) (test-body))])
         (set! results (cons (cons name result) results))
-        (say "~90,1,1,'.@<~A ~> ~A" name (if result "OK" "FAIL"))
+        (say "~90,1,1,'.@<~A ~> ~A (~S)" name (if result "OK" "FAIL") result)
         result))
 
     (test "bus:make-event-bus returns a procedure"
@@ -335,6 +335,72 @@
             (let* ([bus (bus:make-event-bus #f)]
                    [token (bus 'attach! 'test (lambda () #f))])
               (string-contains? (symbol->string token) "ebus-procedure-token:"))))
+
+    (test "'has-attached? returns #t when procedure is attached"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [receiver (lambda () #f)])
+              (bus 'attach! 'test receiver)
+              (bus 'has-attached? 'test receiver))))
+
+    (test "'has-attached? returns #f when procedure is not attached"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [receiver (lambda () #f)])
+              (not (bus 'has-attached? 'test receiver)))))
+
+    (test "'has-attached? returns #f after detach!"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [receiver (lambda () #f)])
+              (bus 'attach! 'test receiver)
+              (bus 'detach! 'test receiver)
+              (not (bus 'has-attached? 'test receiver)))))
+
+    (test "'has-attached? returns #f after detach-id!"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [receiver (lambda () #f)]
+                   [id (bus 'attach! 'test receiver)])
+              (bus 'detach-id! 'test id)
+              (not (bus 'has-attached? 'test receiver)))))
+
+    (test "'has-attached? checks only the specified event"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [receiver (lambda () #f)])
+              (bus 'attach! 'event-a receiver)
+              (and (bus 'has-attached? 'event-a receiver)
+                   (not (bus 'has-attached? 'event-b receiver))))))
+
+    (test "'dump-bus returns a hashtable"
+          (lambda ()
+            (let ([bus (bus:make-event-bus #f)])
+              (hashtable? (bus 'dump-bus)))))
+
+    (test "'dump-bus contains attached receivers"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [receiver (lambda () #f)])
+              (bus 'attach! 'test receiver)
+              (let ([dump (bus 'dump-bus)])
+                (pair? (hashtable-ref dump 'test #f))))))
+
+    (test "'dump-bus is empty after reset!"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [receiver (lambda () #f)])
+              (bus 'attach! 'test receiver)
+              (bus 'reset!)
+              (let ([dump (bus 'dump-bus)])
+                (null? (hashtable-ref dump 'test '()))))))
+
+    (test "'dump-bus returns a copy"
+          (lambda ()
+            (let* ([bus (bus:make-event-bus #f)]
+                   [dump1 (bus 'dump-bus)]
+                   [dump2 (bus 'dump-bus)])
+              (not (eq? dump1 dump2)))))
 
     (let ([all-passed (for-all cdr results)])
       (say "Passed ~R out of ~R test~:P"

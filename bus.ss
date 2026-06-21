@@ -1,3 +1,4 @@
+;;; -*- mode: scheme; geiser-implementation: chez; -*-
 ;;; For the license information, please check out the License file.
 
 #!chezscheme
@@ -107,12 +108,28 @@
                                   pairs)))
                     work)))
 
+      (define (has-attached? e proc)
+        ;; Check whether proc is attached to the event
+        (type-check! [e is symbol? or warning in 'has-attached? "Event must be a symbol"]
+                     [proc is procedure? or error in 'has-attached? "Receiver must be a procedure"])
+        (with-mutex lock
+          (pair? (memp (lambda (pair)
+                         (eq? (cdr pair) proc))
+                       (hashtable-ref receivers e '())))))
+
+      (define (dump-bus)
+        ;; Self explanatory
+        (with-mutex lock
+          (hashtable-copy receivers #f)))
+
       (lambda (m . args)
         (case m
           ['attach! (apply attach! args)]
           ['detach! (apply detach! args)]
           ['detach-id! (apply detach-id! args)]
-          ['reset! (reset!)]
+          ['reset! (apply reset! args)]
           ['propagate! (apply propagate! args)]
-          ['go! (go!)]
+          ['go! (apply go! args)]
+          ['has-attached? (apply has-attached? args)]
+          ['dump-bus (apply dump-bus args)]
           [else (error 'make-event-bus "Did not understood a message" m)])))))

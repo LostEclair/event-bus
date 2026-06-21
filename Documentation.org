@@ -1,13 +1,14 @@
 #+TITLE: Documentation
 
-* WARNING: This documentation is deprecated
-New documentation (for async bus) will be done later.
-
 * (make-event-bus)
 =make-event-bus= returns a closure, which can receive a set of messages.
-
+Provide =#t= if you want your event-bus throwing error when same procedure is added multiple times to the same event (=#f= to disable)
+ 
 ** Messages
 The =bus= mentioned here is a scheme object, which was created by the =make-event-bus=
+
+*** 'go!
+Runs all events
 
 *** 'propagate!
 Calls all of the event receivers, with given set of arguments.
@@ -20,6 +21,7 @@ Checks if the receiver has been attached to the event.
 
 *** 'attach!
 Attaches a receiver function to the event. You cannot duplicate receivers.
+If =#t= was provided to =make-event-bus=, additional check will be executed to ensure that the procedure is unique for that event
 #+BEGIN_SRC scheme
   (define (some-receiver symbol)
     (format #t "Got a symbol: ~A~%" symbol))
@@ -31,7 +33,6 @@ Attaches a receiver function to the event. You cannot duplicate receivers.
   (bus 'attach! 'symbol some-other-receiver)
 
   (bus 'propagate! 'symbol 'foo) ; Those two functions get called.
-  (bus 'receivers 'symbol) ; => (#<procedure some-other-receiver> #<procedure some-receiver>)
 #+END_SRC
 
 *** 'detach!
@@ -44,7 +45,6 @@ Detaches a receiver function from an event.
   (bus 'detach! 'symbol some-receiver)
 
   (bus 'propagate! 'symbol 'foo) ; Nothing will happen
-  (bus 'receivers 'symbol) ; => ()
 #+END_SRC
 
 *** 'reset!
@@ -56,22 +56,14 @@ Resets a bus to an initial state.
   (bus 'attach! 'symbol some-receiver)
   (bus 'attach! 'another-symbol some-receiver)
 
-  (bus 'receivers) ; => #((another-symbol #<procedure some-receiver>) (symbol #<procedure some-receiver>))
-  (bus 'reset!)
-  (bus 'receivers) ; => #()
+  (bus 'reset!) ; => bus is empty
 #+END_SRC
 
-*** 'receivers
-Returns a vector, which consists of all the event receivers.
-If an event is provided, it narrows the scope to the list of receivers of a given event.
-Any returned value is a copy.
+*** 'dump-bus
+Dumps the internal bus hashtable
 #+BEGIN_SRC scheme
-  (define (some-receiver symbol)
-    (format #t "Got a symbol: ~A~%" symbol))
-
-  (bus 'attach! 'symbol some-receiver)
-  (bus 'attach! 'another-symbol some-receiver)
-
-  (bus 'receivers) ; => #((another-symbol #<procedure some-receiver>) (symbol #<procedure some-receiver>))
-  (bus 'receivers 'symbol) ; => (#<procedure some-receiver>)
+(hashtable-values (bus 'dump-bus))
+;; => #(((#{ebus-procedure-token: fx3240cs5gwemy2596v1k6lcv-5}
+;;         .
+;;         #<procedure>)))
 #+END_SRC
